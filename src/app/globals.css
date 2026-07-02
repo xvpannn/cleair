@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), sans-serif;
+  --font-serif: var(--font-serif), serif;
+}
+
+:root {
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+/* Custom Scrollbar matching Forest Green / Cream resort style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F9F6F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #2E5A36;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #1B2A4A;
+}
+
+html, body {
+  background-color: #F9F6F0;
+  color: #1B2A4A;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+
+/* Subtle architectural grid background to fill left/right empty screen space */
+.grid-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-size: 64px 64px;
+  background-image:
+    linear-gradient(to right, rgba(10, 25, 47, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(10, 25, 47, 0.02) 1px, transparent 1px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+
+
+/* Minimalist fade-in utilities */
+.animate-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide scrollbars for chrome/safari and firefox */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Google Translate Dropdown Styling Overrides */
+#google_translate_element {
+  display: inline-flex;
+  align-items: center;
+}
+
+.goog-te-gadget {
+  font-family: var(--font-sans) !important;
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+}
+
+.goog-te-gadget-simple {
+  background-color: transparent !important;
+  border: 1px solid rgba(28, 45, 36, 0.1) !important;
+  padding: 4px 10px !important;
+  border-radius: 9999px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.goog-te-gadget-simple:hover {
+  border-color: #1C2D24 !important;
+  background-color: rgba(28, 45, 36, 0.02) !important;
+}
+
+.goog-te-gadget-simple img {
+  display: none !important; /* Hide default google logo */
+}
+
+.goog-te-gadget-simple span {
+  color: #5B7A68 !important;
+  font-size: 8px !important;
+}
+
+.goog-te-gadget-simple:hover span {
+  color: #1C2D24 !important;
+}
+
+/* Hide translation banner and tooltips */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame,
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+}
+
