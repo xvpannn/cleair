@@ -209,7 +209,7 @@ export default function AdminDashboard() {
 
         <div className="max-w-[420px] w-full bg-white/90 backdrop-blur-md rounded-2xl p-8 border border-[#1C2D24]/5 shadow-sm relative z-10">
           <div className="text-center mb-8">
-            <span className="font-serif italic text-3xl text-[#1C2D24] block mb-1">Clear<span className="text-[#2D5A27]">.</span></span>
+            <span className="font-serif italic text-3xl text-[#1C2D24] block mb-1">Cleaire<span className="text-[#2D5A27]">.</span></span>
             <p className="text-[10px] font-bold tracking-[0.2em] text-[#5B7A68] uppercase font-mono">ADMINISTRATOR PORTAL</p>
           </div>
 
@@ -282,7 +282,7 @@ export default function AdminDashboard() {
         <div className="max-w-[1200px] mx-auto px-6 flex justify-between items-center">
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-xl font-semibold tracking-tight text-[#1C2D24]">
-              Clear<span className="text-[#2D5A27]">.</span>
+              Cleaire<span className="text-[#2D5A27]">.</span>
             </span>
             <span className="font-mono text-[8px] font-bold tracking-widest text-[#8C6239] uppercase bg-[#8C6239]/10 px-2 py-0.5 rounded">
               ADMIN PANEL
