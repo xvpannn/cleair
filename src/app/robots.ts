@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: '/admin/',
     },
-    sitemap: 'https://clear.falcronian.com/sitemap.xml',
+    sitemap: 'https://cleaire.com/sitemap.xml',
   };
 }

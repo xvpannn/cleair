@@ -1,48 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-
-const BOOKINGS_FILE = path.join(process.cwd(), "bookings.json");
-
-// Helper to read bookings from JSON file
-function readBookings(): any[] {
-  try {
-    if (!fs.existsSync(BOOKINGS_FILE)) {
-      const initialBookings = [
-        {
-          id: "book-001",
-          name: "Pandu Kusuma",
-          whatsapp: "081234567890",
-          resourceName: "Website Portofolio Vila (Jasa)",
-          resourceType: "SLOT",
-          startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-          endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
-          status: "CONFIRMED",
-          createdAt: new Date().toISOString()
-        }
-      ];
-      fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(initialBookings, null, 2));
-      return initialBookings;
-    }
-    const data = fs.readFileSync(BOOKINGS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch (err) {
-    console.error("Error reading bookings file:", err);
-    return [];
-  }
-}
-
-// Helper to write bookings to JSON file
-function writeBookings(bookings: any[]) {
-  try {
-    fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(bookings, null, 2));
-  } catch (err) {
-    console.error("Error writing bookings file:", err);
-  }
-}
+import { readBookings, createBooking, updateBookingStatus, deleteBooking } from "@/lib/bookingService";
 
 export async function GET() {
-  const bookings = readBookings();
+  const bookings = await readBookings();
   return NextResponse.json({ success: true, bookings });
 }
 
@@ -84,7 +44,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const bookings = readBookings();
+    const bookings = await readBookings();
 
     // 1. TEMPORAL VALIDATION: Prevent double booking for slot resources at the same time
     const hasConflict = bookings.some(b => {
@@ -104,21 +64,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. CREATE BOOKING IN CONFIRMED STATE (Free Scheduling Slot)
-    const newBooking = {
-      id: "book-" + Math.random().toString(36).substr(2, 9),
+    // 2. CREATE BOOKING
+    const newBooking = await createBooking({
       name,
       whatsapp,
       resourceName,
-      resourceType,
+      resourceType: resourceType || "SLOT",
       startTime: start.toISOString(),
-      endTime: end.toISOString(),
-      status: "CONFIRMED",
-      createdAt: now.toISOString()
-    };
+      endTime: end.toISOString()
+    });
 
-    bookings.push(newBooking);
-    writeBookings(bookings);
+    // Send push / email notification to admin
+    try {
+      const { sendAdminNotification } = await import("@/lib/notification");
+      const formattedTime = `${new Date(newBooking.startTime).toLocaleDateString("id-ID", { dateStyle: "medium" })} pukul ${new Date(newBooking.startTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+      await sendAdminNotification({
+        title: "Booking Slot Diskusi Baru!",
+        name: newBooking.name,
+        whatsapp: newBooking.whatsapp,
+        service: newBooking.resourceName,
+        timeDetails: formattedTime
+      });
+    } catch (notifErr) {
+      console.error("Failed to send admin notification:", notifErr);
+    }
 
     return NextResponse.json({
       success: true,
@@ -147,22 +116,18 @@ export async function PUT(request: Request) {
       );
     }
 
-    const bookings = readBookings();
-    const index = bookings.findIndex(b => b.id === id);
+    const updated = await updateBookingStatus(id, status);
 
-    if (index === -1) {
+    if (!updated) {
       return NextResponse.json(
         { success: false, error: "Pemesanan tidak ditemukan." },
         { status: 404 }
       );
     }
 
-    bookings[index].status = status;
-    writeBookings(bookings);
-
     return NextResponse.json({
       success: true,
-      booking: bookings[index],
+      booking: updated,
       message: "Status pemesanan berhasil diperbarui!"
     });
   } catch (err: any) {
@@ -186,17 +151,14 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const bookings = readBookings();
-    const filtered = bookings.filter(b => b.id !== id);
+    const success = await deleteBooking(id);
 
-    if (bookings.length === filtered.length) {
+    if (!success) {
       return NextResponse.json(
         { success: false, error: "Pemesanan tidak ditemukan." },
         { status: 404 }
       );
     }
-
-    writeBookings(filtered);
 
     return NextResponse.json({
       success: true,

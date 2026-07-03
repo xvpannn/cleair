@@ -21,12 +21,24 @@ export async function POST(request: Request) {
     console.log(`Topik Bahasan: ${topic}`);
     console.log("====================================");
 
-    // In production, you would integrate Resend/email or write to a database here.
+    // Send push / email notification to admin
+    try {
+      const { sendAdminNotification } = await import("@/lib/notification");
+      await sendAdminNotification({
+        title: "Pengajuan Jadwal Diskusi Baru (Form)",
+        name,
+        whatsapp: whatsapp,
+        service: topic,
+        timeDetails: date
+      });
+    } catch (notifErr) {
+      console.error("Failed to send admin notification:", notifErr);
+    }
 
     return NextResponse.json(
       { 
         success: true, 
-        message: "Jadwal diskusi Anda berhasil diajukan. Tim Falcronian akan menghubungi Anda via WhatsApp dalam waktu maksimal 2 jam." 
+        message: "Jadwal diskusi Anda berhasil diajukan. Tim Cleaire akan menghubungi Anda via WhatsApp dalam waktu maksimal 2 jam." 
       },
       { status: 200 }
     );

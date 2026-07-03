@@ -1,24 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-
-const BOOKINGS_FILE = path.join(process.cwd(), "bookings.json");
-
-function readBookings(): any[] {
-  try {
-    if (!fs.existsSync(BOOKINGS_FILE)) return [];
-    const data = fs.readFileSync(BOOKINGS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch (err) {
-    return [];
-  }
-}
-
-function writeBookings(bookings: any[]) {
-  try {
-    fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(bookings, null, 2));
-  } catch (err) {}
-}
+import { updateBookingStatus, readBookings } from "@/lib/bookingService";
 
 export async function POST(
   request: Request,
@@ -26,35 +7,29 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const bookings = readBookings();
-    const index = bookings.findIndex(b => b.id === id);
+    const bookings = await readBookings();
+    const booking = bookings.find(b => b.id === id);
 
-    if (index === -1) {
+    if (!booking) {
       return NextResponse.json(
         { success: false, error: "Booking tidak ditemukan." },
         { status: 404 }
       );
     }
 
-    const booking = bookings[index];
-
-    if (booking.paymentStatus === "PAID") {
+    if (booking.status === "CONFIRMED") {
       return NextResponse.json(
-        { success: false, error: "Booking ini sudah berstatus PAID." },
+        { success: false, error: "Booking ini sudah berstatus CONFIRMED." },
         { status: 400 }
       );
     }
 
-    // Update status to PAID & CONFIRMED
-    booking.status = "CONFIRMED";
-    booking.paymentStatus = "PAID";
-
-    bookings[index] = booking;
-    writeBookings(bookings);
+    // Update status to CONFIRMED
+    const updated = await updateBookingStatus(id, "CONFIRMED");
 
     return NextResponse.json({
       success: true,
-      booking,
+      booking: updated,
       message: "Pembayaran terverifikasi secara aman melalui Headless Gateway!"
     });
 

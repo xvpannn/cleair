@@ -231,3 +231,17 @@ model AvailabilityException {
   @@index([tenantId], map: "idx_exceptions_tenant")
   @@map("availability_exceptions")
 }
+
+model SimpleBooking {
+  id           String   @id @default(uuid())
+  name         String
+  whatsapp     String
+  resourceName String   @map("resource_name")
+  resourceType String   @map("resource_type")
+  startTime    DateTime @map("start_time")
+  endTime      DateTime @map("end_time")
+  status       String   @default("CONFIRMED")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("simple_bookings")
+}

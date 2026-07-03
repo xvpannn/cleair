@@ -121,7 +121,7 @@ export default function Home() {
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "host"; text: string }>>([
-    { sender: "host", text: "Halo. Saya Pramutamu Clear. Untuk menjaga efisiensi waktu, silakan pilih salah satu opsi di bawah untuk langsung menuju solusi yang Anda butuhkan." }
+    { sender: "host", text: "Halo. Saya Pramutamu Cleaire. Untuk menjaga efisiensi waktu, silakan pilih salah satu opsi di bawah untuk langsung menuju solusi yang Anda butuhkan." }
   ]);
 
   // Navbar scroll tracking
@@ -286,7 +286,7 @@ export default function Home() {
   };
 
   const getWhatsAppLink = (bookingDetails?: BookingItem) => {
-    const waNumber = "6281805397068";
+    const waNumber = "6285707098428";
     const name = bookingDetails ? bookingDetails.name : formName || "[Belum diisi]";
     const serviceName = bookingDetails ? bookingDetails.resourceName : selectedService.name;
     const detail = formDetail || "Saya ingin tahu estimasi pengerjaan dan alur mulainya.";
@@ -297,7 +297,7 @@ export default function Home() {
       timeStr = `\n• Jadwal Diskusi: ${d.toLocaleDateString("id-ID", { dateStyle: "medium" })} pukul ${d.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })} WIB`;
     }
     
-    const text = `Halo Clear,\n\nSaya ingin berdiskusi mengenai proyek website:\n\n• Nama: ${name}\n• Layanan: ${serviceName}${timeStr}\n• Catatan: ${detail}\n\nApakah jadwal ini dapat dikonfirmasi? Terima kasih.`;
+    const text = `Halo Cleaire,\n\nSaya ingin berdiskusi mengenai proyek website:\n\n• Nama: ${name}\n• Layanan: ${serviceName}${timeStr}\n• Catatan: ${detail}\n\nApakah jadwal ini dapat dikonfirmasi? Terima kasih.`;
     return `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`;
   };
 
@@ -332,7 +332,7 @@ export default function Home() {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[#F9F6F0] flex items-center justify-center">
-        <div className="font-serif italic text-2xl text-[#1C2D24]/60 animate-pulse">Clear.</div>
+        <div className="font-serif italic text-2xl text-[#1C2D24]/60 animate-pulse">Cleaire.</div>
       </div>
     );
   }
@@ -350,9 +350,16 @@ export default function Home() {
           <div className="flex items-center gap-1">
             <span 
               onClick={(e) => scrollToSection(e, "top")} 
-              className="font-serif text-lg font-semibold tracking-tight text-[#1C2D24] cursor-pointer"
+              className="cursor-pointer flex items-center"
             >
-              Clear<span className="text-[#2D5A27]">.</span>
+              <Image 
+                src="/logo.webp" 
+                alt="Cleaire Logo" 
+                width={90} 
+                height={26} 
+                className="h-6 w-auto object-contain"
+                priority
+              />
             </span>
           </div>
           
@@ -739,7 +746,7 @@ export default function Home() {
               <div className="space-y-2 text-xs text-[#F9F6F0]/60 font-light font-sans">
                 <p>Sanur, Bali, Indonesia</p>
                 <p>
-                  <a href="tel:+6281805397068" className="hover:text-white transition-colors">+62 818 0539 7068</a>
+                  <a href="tel:+6285707098428" className="hover:text-white transition-colors">+62 857 0709 8428</a>
                 </p>
                 <p>
                   <a href="mailto:dev@clear.com" className="hover:text-white transition-colors">dev@clear.com</a>
@@ -758,7 +765,7 @@ export default function Home() {
           </div>
 
           <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[9px] text-[#F9F6F0]/40 font-mono">
-            <p>© 2026 Clear. Hak cipta dilindungi undang-undang.</p>
+            <p>© 2026 Cleaire. Hak cipta dilindungi undang-undang.</p>
             <div className="flex gap-6">
               <a href="#" className="hover:text-white transition-colors">Syarat & Ketentuan</a>
               <a href="#" className="hover:text-white transition-colors">Kebijakan Privasi</a>
@@ -779,7 +786,7 @@ export default function Home() {
             </button>
 
             <div className="text-left pb-4 border-b border-[#1C2D24]/10 mb-6">
-              <span className="text-[9px] font-mono text-[#5B7A68] font-bold tracking-widest uppercase block mb-1">MULAI PROYEK DENGAN CLEAR</span>
+              <span className="text-[9px] font-mono text-[#5B7A68] font-bold tracking-widest uppercase block mb-1">MULAI PROYEK DENGAN CLEAIRE</span>
               <h4 className="font-serif text-2xl font-light text-[#1C2D24]">Detail Diskusi Proyek</h4>
               <p className="text-xs text-[#5B7A68] mt-1">Kami memerlukan informasi dasar untuk menyiapkan draf konsep Anda.</p>
             </div>
@@ -922,7 +929,7 @@ export default function Home() {
             </button>
 
             <div className="text-center pb-4 border-b border-dashed border-[#1C2D24]/10 mb-6">
-              <span className="text-[10px] font-mono text-[#2D5A27] font-bold tracking-widest uppercase block mb-1">CLEAR WEB STUDIO</span>
+                <span className="text-[10px] font-mono text-[#2D5A27] font-bold tracking-widest uppercase block mb-1">CLEAIRE WEB STUDIO</span>
               <h4 className="font-serif text-2xl font-light text-[#1C2D24]">Appointment Booked</h4>
               <p className="text-[11px] text-[#5B7A68] mt-1">Kami telah memverifikasi slot diskusi Anda</p>
             </div>
@@ -949,15 +956,14 @@ export default function Home() {
             </div>
 
             <p className="text-[11px] text-[#5B7A68] text-center mb-6 leading-relaxed">
-              Silakan klik tombol di bawah untuk membuka obrolan langsung di WhatsApp. Kami akan segera mendiskusikan penawaran kustom Anda hari ini.
+              Jadwal diskusi Anda telah terdaftar. Kami akan menghubungi Anda secara langsung via WhatsApp dalam waktu dekat. Terima kasih.
             </p>
 
             <button 
-              onClick={() => handleSimulatedPayment(activeCheckoutBooking)}
-              className="w-full py-4 bg-[#2D5A27] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#1F3E1B] transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              onClick={() => setActiveCheckoutBooking(null)}
+              className="w-full py-4 bg-[#1C2D24] text-[#F9F6F0] text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#2D5A27] transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
-              <MessageSquare className="h-4 w-4" />
-              Buka Obrolan WhatsApp
+              Selesai
             </button>
           </div>
         </div>

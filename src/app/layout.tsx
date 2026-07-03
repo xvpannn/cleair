@@ -15,9 +15,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Clear — Custom Web & Internal Systems",
+  title: "Cleaire — Custom Web & Internal Systems",
   description: "Kami membangun website kustom, dasbor internal, dan profil bisnis minimalis dengan kecepatan maksimal di Bali.",
-  metadataBase: new URL("https://clear.falcronian.com"),
+  metadataBase: new URL("https://cleaire.com"),
   alternates: {
     canonical: "/",
   },
@@ -33,10 +33,10 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "Clear — Custom Web & Internal Systems",
+    title: "Cleaire — Custom Web & Internal Systems",
     description: "Kami membangun website kustom, dasbor internal, dan profil bisnis minimalis dengan kecepatan maksimal di Bali.",
-    url: "https://clear.falcronian.com",
-    siteName: "Clear",
+    url: "https://cleaire.com",
+    siteName: "Cleaire",
     locale: "id_ID",
     type: "website",
     images: [
@@ -44,13 +44,13 @@ export const metadata: Metadata = {
         url: "/og-image.jpg", // Make sure this image is present in your public folder later
         width: 1200,
         height: 630,
-        alt: "Clear — Custom Web & Internal Systems",
+        alt: "Cleaire — Custom Web & Internal Systems",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clear — Custom Web & Internal Systems",
+    title: "Cleaire — Custom Web & Internal Systems",
     description: "Kami membangun website kustom, dasbor internal, dan profil bisnis minimalis dengan kecepatan maksimal.",
     images: ["/og-image.jpg"],
   },
@@ -69,11 +69,11 @@ export default function RootLayout({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "ProfessionalService",
-    "name": "Clear",
-    "image": "https://clear.falcronian.com/og-image.jpg",
+    "name": "Cleaire",
+    "image": "https://cleaire.com/og-image.jpg",
     "description": "Kami membangun website kustom, dasbor internal, dan profil bisnis minimalis dengan kecepatan maksimal di Bali.",
-    "url": "https://clear.falcronian.com",
-    "telephone": "+6281805397068",
+    "url": "https://cleaire.com",
+    "telephone": "+6285707098428",
     "address": {
       "@type": "PostalAddress",
       "streetAddress": "Sanur",
