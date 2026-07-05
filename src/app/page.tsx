@@ -130,26 +130,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
 
-    // Google Translate script loading
-    (window as any).googleTranslateElementInit = () => {
-      if ((window as any).google && (window as any).google.translate) {
-        new (window as any).google.translate.TranslateElement(
-          {
-            pageLanguage: 'id',
-            layout: (window as any).google.translate.TranslateElement.InlineLayout.SIMPLE
-          },
-          'google_translate_element'
-        );
-      }
-    };
 
-    if (!document.getElementById("google-translate-script")) {
-      const addScript = document.createElement("script");
-      addScript.setAttribute("id", "google-translate-script");
-      addScript.setAttribute("src", "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit");
-      document.body.appendChild(addScript);
-    }
-    
     // Generate next 7 days (excluding Sundays) for inline calendar
     const days = [];
     const weekdays = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -370,7 +351,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div id="google_translate_element" className="mr-1"></div>
+
             <button 
               onClick={() => {
                 setSelectedServiceId("srv-01");
