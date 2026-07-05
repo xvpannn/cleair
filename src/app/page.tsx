@@ -90,9 +90,14 @@ const SERVICES = [
 
 const TIME_SLOTS = [
   { value: "09:00", label: "09:00 WIB" },
+  { value: "10:00", label: "10:00 WIB" },
   { value: "11:00", label: "11:00 WIB" },
+  { value: "12:00", label: "12:00 WIB" },
+  { value: "13:00", label: "13:00 WIB" },
   { value: "14:00", label: "14:00 WIB" },
-  { value: "16:00", label: "16:00 WIB" }
+  { value: "15:00", label: "15:00 WIB" },
+  { value: "16:00", label: "16:00 WIB" },
+  { value: "17:00", label: "17:00 WIB" }
 ];
 
 export default function Home() {
@@ -131,7 +136,6 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
 
-
     // Generate next 7 days (excluding Sundays) for inline calendar
     const days = [];
     const weekdays = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -143,7 +147,10 @@ export default function Home() {
       const d = new Date();
       d.setDate(d.getDate() + offset);
       if (d.getDay() !== 0) {
-        const dateStr = d.toISOString().split("T")[0];
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const dateStr = `${yyyy}-${mm}-${dd}`;
         days.push({
           dateStr,
           label: `${d.getDate()} ${months[d.getMonth()]}`,
@@ -154,9 +161,6 @@ export default function Home() {
       offset++;
     }
     setAvailableDays(days);
-    if (days.length > 0) {
-      setSelectedDateStr(days[0].dateStr);
-    }
 
     fetchExistingBookings();
 
@@ -193,6 +197,23 @@ export default function Home() {
     }
   };
 
+  const getLocalDateStr = (dateObjOrStr: Date | string) => {
+    const d = new Date(dateObjOrStr);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const isDayFullyBlocked = (dateStr: string) => {
+    return existingBookings.some(b => {
+      if (b.status === "CONFIRMED" && b.name === "BLOKIR HARI") {
+        return getLocalDateStr(b.startTime) === dateStr;
+      }
+      return false;
+    });
+  };
+
   const isSlotTaken = (dateStr: string, timeVal: string) => {
     const slotStart = new Date(`${dateStr}T${timeVal}:00`);
     const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
@@ -210,9 +231,26 @@ export default function Home() {
     });
   };
 
+  // Auto-select free date initially once loaded
+  useEffect(() => {
+    if (availableDays.length > 0) {
+      const firstFreeDay = availableDays.find(day => !isDayFullyBlocked(day.dateStr)) || availableDays[0];
+      setSelectedDateStr(firstFreeDay.dateStr);
+    }
+  }, [availableDays, existingBookings]);
+
   // Auto-select free slot on date/service change
   useEffect(() => {
     if (selectedDateStr) {
+      // If current day is fully blocked, select first available day
+      if (isDayFullyBlocked(selectedDateStr)) {
+        const firstFreeDay = availableDays.find(day => !isDayFullyBlocked(day.dateStr));
+        if (firstFreeDay) {
+          setSelectedDateStr(firstFreeDay.dateStr);
+          return;
+        }
+      }
+
       const isTaken = isSlotTaken(selectedDateStr, selectedTimeSlot);
       if (isTaken) {
         const firstFree = TIME_SLOTS.find(slot => !isSlotTaken(selectedDateStr, slot.value));
@@ -223,7 +261,7 @@ export default function Home() {
         }
       }
     }
-  }, [selectedDateStr, selectedServiceId, existingBookings]);
+  }, [selectedDateStr, selectedServiceId, existingBookings, availableDays]);
 
   const scrollToSection = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -866,15 +904,19 @@ export default function Home() {
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x touch-pan-x w-full">
                   {availableDays.map((day) => {
                     const isSelected = selectedDateStr === day.dateStr;
+                    const isBlocked = isDayFullyBlocked(day.dateStr);
                     return (
                       <button
                         key={day.dateStr}
                         type="button"
+                        disabled={isBlocked}
                         onClick={() => setSelectedDateStr(day.dateStr)}
-                        className={`p-2.5 rounded-lg border text-center flex flex-col items-center justify-center transition-all min-w-[62px] shrink-0 snap-start cursor-pointer ${
-                          isSelected 
-                            ? "bg-[#1C2D24] border-[#1C2D24] text-[#F9F6F0]" 
-                            : "bg-white border-[#1C2D24]/10 text-[#1C2D24] hover:bg-[#1C2D24]/5"
+                        className={`p-2.5 rounded-lg border text-center flex flex-col items-center justify-center transition-all min-w-[62px] shrink-0 snap-start ${
+                          isBlocked
+                            ? "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed line-through"
+                            : isSelected 
+                            ? "bg-[#1C2D24] border-[#1C2D24] text-[#F9F6F0] cursor-pointer" 
+                            : "bg-white border-[#1C2D24]/10 text-[#1C2D24] hover:bg-[#1C2D24]/5 cursor-pointer"
                         }`}
                       >
                         <span className="text-[8px] font-mono uppercase opacity-60 block">{day.dayName.substring(0, 3)}</span>

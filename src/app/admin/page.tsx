@@ -7,13 +7,18 @@ import {
   XCircle, 
   ExternalLink, 
   Lock, 
+  Unlock,
   LogOut, 
   RefreshCw, 
   Calendar, 
   MessageSquare,
   Sparkles,
   Check,
-  Edit
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Clock
 } from "lucide-react";
 
 interface BookingItem {
@@ -33,6 +38,18 @@ interface ToastState {
   message: string;
   type: "success" | "error" | "warning";
 }
+
+const TIME_SLOTS = [
+  { value: "09:00", label: "09:00 WIB" },
+  { value: "10:00", label: "10:00 WIB" },
+  { value: "11:00", label: "11:00 WIB" },
+  { value: "12:00", label: "12:00 WIB" },
+  { value: "13:00", label: "13:00 WIB" },
+  { value: "14:00", label: "14:00 WIB" },
+  { value: "15:00", label: "15:00 WIB" },
+  { value: "16:00", label: "16:00 WIB" },
+  { value: "17:00", label: "17:00 WIB" }
+];
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,6 +85,17 @@ export default function AdminDashboard() {
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editStatus, setEditStatus] = useState("CONFIRMED");
+
+  // Interactive Calendar States
+  const [activeTab, setActiveTab] = useState<"calendar" | "list">("calendar");
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [selectedCalendarDateStr, setSelectedCalendarDateStr] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
 
   // Check auth state from sessionStorage on mount
   useEffect(() => {
@@ -212,6 +240,175 @@ export default function AdminDashboard() {
     setIsAuthenticated(false);
     setBookings([]);
     triggerToast("Logout berhasil.", "success");
+  };
+
+  // Generate days in month for React calendar grid
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // First day of the month
+    const firstDay = new Date(year, month, 1);
+    const startDayIndex = firstDay.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    
+    // Total days in month
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    
+    // Padding days from previous month
+    const prevMonthTotalDays = new Date(year, month, 0).getDate();
+    for (let i = startDayIndex - 1; i >= 0; i--) {
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear = month === 0 ? year - 1 : year;
+      days.push({
+        dateStr: `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}-${String(prevMonthTotalDays - i).padStart(2, "0")}`,
+        dayNum: prevMonthTotalDays - i,
+        isCurrentMonth: false
+      });
+    }
+    
+    // Days of current month
+    for (let i = 1; i <= totalDays; i++) {
+      days.push({
+        dateStr: `${year}-${String(month + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`,
+        dayNum: i,
+        isCurrentMonth: true
+      });
+    }
+    
+    // Padding days for next month to complete the grid (usually 42 cells total)
+    const totalCells = 42;
+    const nextMonthPadding = totalCells - days.length;
+    for (let i = 1; i <= nextMonthPadding; i++) {
+      const nextMonth = month === 11 ? 0 : month + 1;
+      const nextYear = month === 11 ? year + 1 : year;
+      days.push({
+        dateStr: `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`,
+        dayNum: i,
+        isCurrentMonth: false
+      });
+    }
+    
+    return days;
+  };
+
+  const getLocalDateStr = (dateObjOrStr: Date | string) => {
+    const d = new Date(dateObjOrStr);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getDayStatus = (dateStr: string) => {
+    const dayBookings = bookings.filter(b => getLocalDateStr(b.startTime) === dateStr);
+    const isBlocked = dayBookings.some(b => b.name === "BLOKIR HARI" && b.status === "CONFIRMED");
+    const clientBookings = dayBookings.filter(b => b.name !== "BLOKIR HARI");
+    const d = new Date(dateStr);
+    const isSunday = d.getDay() === 0;
+    
+    return {
+      isBlocked,
+      isSunday,
+      clientBookings,
+      totalBookings: clientBookings.length
+    };
+  };
+
+  const handleToggleBlockDay = async (dateStr: string) => {
+    const status = getDayStatus(dateStr);
+    if (status.isBlocked) {
+      // Unblock: Find block booking and delete
+      const blockBooking = bookings.find(b => getLocalDateStr(b.startTime) === dateStr && b.name === "BLOKIR HARI");
+      if (blockBooking) {
+        try {
+          const res = await fetch(`/api/bookings?id=${blockBooking.id}`, {
+            method: "DELETE"
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            triggerToast("Blokir hari berhasil dibuka.", "success");
+            fetchBookings();
+          } else {
+            triggerToast(data.error || "Gagal membuka blokir.", "error");
+          }
+        } catch (err) {
+          triggerToast("Gagal karena kendala koneksi.", "error");
+        }
+      }
+    } else {
+      // Block: Create full-day block
+      try {
+        const start = new Date(`${dateStr}T00:00:00`);
+        const end = new Date(`${dateStr}T23:59:59`);
+        
+        const payload = {
+          name: "BLOKIR HARI",
+          whatsapp: "00000000000",
+          resourceName: "Semua Layanan",
+          resourceType: "BLOCK",
+          startTime: start.toISOString(),
+          endTime: end.toISOString()
+        };
+
+        const res = await fetch("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          triggerToast("Hari berhasil diblokir penuh.", "success");
+          fetchBookings();
+        } else {
+          triggerToast(data.error || "Gagal memblokir hari.", "error");
+        }
+      } catch (err) {
+        triggerToast("Gagal karena kendala koneksi.", "error");
+      }
+    }
+  };
+
+  const handleBlockSlot = async (dateStr: string, timeVal: string) => {
+    try {
+      const start = new Date(`${dateStr}T${timeVal}:00`);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      
+      const payload = {
+        name: "BLOKIR JADWAL",
+        whatsapp: "00000000000",
+        resourceName: "Semua Layanan",
+        resourceType: "BLOCK",
+        startTime: start.toISOString(),
+        endTime: end.toISOString()
+      };
+
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        triggerToast("Slot waktu berhasil diblokir.", "success");
+        fetchBookings();
+      } else {
+        triggerToast(data.error || "Gagal memblokir slot.", "error");
+      }
+    } catch (err) {
+      triggerToast("Gagal karena kendala koneksi.", "error");
+    }
+  };
+
+  const openManualBooking = (dateStr: string, timeVal: string) => {
+    setCreateDate(dateStr);
+    setCreateTime(timeVal);
+    setCreateIsBlock(false);
+    setCreateName("");
+    setCreateWhatsapp("");
+    setCreateResourceName("Website Kustom");
+    setIsCreateModalOpen(true);
   };
 
   const fetchBookings = async () => {
@@ -400,6 +597,10 @@ export default function AdminDashboard() {
   }
 
   // Render Admin Dashboard
+  const daysInMonth = getDaysInMonth(currentMonth);
+  const weekdays = ["Ming", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const currentMonthLabel = `${currentMonth.toLocaleDateString("id-ID", { month: "long" })} ${currentMonth.getFullYear()}`;
+
   return (
     <div className="min-h-screen bg-[#F9F6F0] text-[#1C2D24] font-sans antialiased relative pb-16 selection:bg-[#1C2D24] selection:text-white">
       {/* Subtle grid backdrop */}
@@ -428,23 +629,28 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-[1200px] mx-auto px-6 py-12 relative z-10">
-        {/* Welcome & Stats Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end mb-12">
-          <div className="lg:col-span-8">
+        {/* Welcome Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+          <div>
             <h1 className="font-serif text-3xl sm:text-4xl font-light text-[#1C2D24]">
-              Daftar Permintaan Jadwal <br />
-              <span className="font-serif italic text-[#5B7A68]">Diskusi Proyek Klien</span>
+              Dasbor Manajemen Jadwal <br />
+              <span className="font-serif italic text-[#5B7A68]">Diskusi & Ketersediaan</span>
             </h1>
           </div>
           
-          {/* Controls */}
-          <div className="lg:col-span-4 flex items-center justify-end gap-3">
+          <div className="flex items-center gap-3">
             <button 
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => {
+                setCreateDate(selectedCalendarDateStr);
+                setCreateIsBlock(true);
+                setCreateName("BLOKIR JADWAL");
+                setCreateWhatsapp("00000000000");
+                setIsCreateModalOpen(true);
+              }}
               className="flex items-center gap-1.5 px-4 py-3 rounded-lg bg-[#1C2D24] text-[#F9F6F0] hover:bg-[#2D5A27] transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
             >
               <Calendar className="w-4 h-4" />
-              Tambah Booking / Blokir
+              Blokir Slot Waktu
             </button>
 
             <button 
@@ -454,177 +660,452 @@ export default function AdminDashboard() {
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             </button>
-
-            <select
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              className="px-4 py-3 rounded-lg bg-white border border-[#1C2D24]/10 text-xs font-semibold focus:outline-none focus:border-[#2D5A27] text-[#1C2D24]"
-            >
-              <option value="ALL">Semua Status</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="PENDING">Pending</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
           </div>
         </div>
 
-        {/* Booking Count Summary Widgets */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
-            <span className="text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase block mb-1">TOTAL PERMINTAAN</span>
-            <span className="text-2xl font-semibold text-[#1C2D24]">{bookings.length}</span>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
-            <span className="text-[9px] font-mono font-bold tracking-widest text-[#2D5A27] uppercase block mb-1">TERKONFIRMASI</span>
-            <span className="text-2xl font-semibold text-[#2D5A27]">
-              {bookings.filter(b => b.status === "CONFIRMED").length}
-            </span>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
-            <span className="text-[9px] font-mono font-bold tracking-widest text-blue-700 uppercase block mb-1">SELESAI DISKUSI</span>
-            <span className="text-2xl font-semibold text-blue-700">
-              {bookings.filter(b => b.status === "COMPLETED").length}
-            </span>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
-            <span className="text-[9px] font-mono font-bold tracking-widest text-rose-700 uppercase block mb-1">BATAL</span>
-            <span className="text-2xl font-semibold text-rose-700">
-              {bookings.filter(b => b.status === "CANCELLED").length}
-            </span>
-          </div>
+        {/* View Switcher Tabs */}
+        <div className="flex border-b border-[#1C2D24]/10 mb-8 gap-4">
+          <button
+            onClick={() => setActiveTab("calendar")}
+            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 font-mono transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "calendar"
+                ? "border-[#2D5A27] text-[#2D5A27]"
+                : "border-transparent text-[#5B7A68] hover:text-[#1C2D24]"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Kalender Interaktif
+          </button>
+          <button
+            onClick={() => setActiveTab("list")}
+            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 font-mono transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "list"
+                ? "border-[#2D5A27] text-[#2D5A27]"
+                : "border-transparent text-[#5B7A68] hover:text-[#1C2D24]"
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            Semua Permintaan ({bookings.length})
+          </button>
         </div>
 
-        {/* Bookings Table / List Container */}
-        <div className="bg-white rounded-2xl border border-[#1C2D24]/5 overflow-hidden">
-          {isLoading && bookings.length === 0 ? (
-            <div className="py-24 text-center">
-              <RefreshCw className="w-8 h-8 text-[#5B7A68] animate-spin mx-auto mb-3" />
-              <p className="font-serif italic text-lg text-[#5B7A68]/80">Mengambil data pemesanan...</p>
-            </div>
-          ) : filteredBookings.length === 0 ? (
-            <div className="py-24 text-center">
-              <Calendar className="w-8 h-8 text-[#5B7A68]/40 mx-auto mb-3" />
-              <p className="font-serif italic text-lg text-[#5B7A68]/80">Tidak ada data diskusi ditemukan.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#1C2D24]/5 bg-[#F9F6F0]/20">
-                    <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">KLIEN</th>
-                    <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">LAYANAN</th>
-                    <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">TANGGAL & WAKTU</th>
-                    <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">STATUS</th>
-                    <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase text-right">AKSI</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1C2D24]/5">
-                  {filteredBookings.map((booking) => {
-                    const waLink = `https://wa.me/${booking.whatsapp.replace(/\D/g, "")}`;
-                    
-                    return (
-                      <tr key={booking.id} className={`hover:bg-[#F9F6F0]/10 transition-colors ${
-                        booking.name === "BLOKIR JADWAL" ? "bg-amber-50/20" : ""
-                      }`}>
-                        {/* Client details */}
-                        <td className="px-6 py-5">
-                          {booking.name === "BLOKIR JADWAL" ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-sm text-[#8C6239] flex items-center gap-1">🔒 JADWAL DIBLOKIR</span>
-                              <span className="text-[7px] font-mono font-bold tracking-widest text-[#8C6239] bg-[#8C6239]/10 px-1.5 py-0.5 rounded">UNAVAILABLE</span>
-                            </div>
-                          ) : (
-                            <div className="font-semibold text-sm text-[#1C2D24]">{booking.name}</div>
-                          )}
-                          
-                          {booking.name === "BLOKIR JADWAL" ? (
-                            <span className="text-[10px] font-mono text-[#5B7A68]">Blokir Sistem</span>
-                          ) : (
-                            <a 
-                              href={waLink} 
-                              target="_blank" 
-                              className="text-xs font-mono text-[#5B7A68] hover:text-[#2D5A27] inline-flex items-center gap-1.5 mt-1"
-                            >
-                              <span>{booking.whatsapp}</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </td>
-                        
-                        {/* Service Chosen */}
-                        <td className="px-6 py-5">
-                          <div className="text-sm font-medium">{booking.resourceName}</div>
-                          <div className="text-[10px] font-mono text-[#8C6239] uppercase mt-0.5">{booking.resourceType}</div>
-                        </td>
+        {/* TAB 1: CALENDAR VIEW */}
+        {activeTab === "calendar" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Left: Monthly Calendar Grid */}
+            <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-[#1C2D24]/5 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-serif text-lg font-semibold text-[#1C2D24] capitalize">
+                  {currentMonthLabel}
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
+                    className="p-1.5 rounded-lg border border-[#1C2D24]/10 hover:bg-[#1C2D24]/5 text-[#5B7A68] hover:text-[#1C2D24]"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
+                    className="p-1.5 rounded-lg border border-[#1C2D24]/10 hover:bg-[#1C2D24]/5 text-[#5B7A68] hover:text-[#1C2D24]"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-                        {/* Date and Time */}
-                        <td className="px-6 py-5">
-                          <div className="text-sm text-[#1C2D24] font-medium">{formatDate(booking.startTime)}</div>
-                          <div className="text-xs font-mono text-[#5B7A68] mt-0.5">{formatTime(booking.startTime)}</div>
-                        </td>
+              {/* Day column headers */}
+              <div className="grid grid-cols-7 gap-2 text-center mb-3">
+                {weekdays.map(wd => (
+                  <span key={wd} className="text-[10px] font-bold text-[#5B7A68] uppercase font-mono tracking-wider">
+                    {wd}
+                  </span>
+                ))}
+              </div>
 
-                        {/* Status Badge */}
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono ${getStatusBadgeClass(booking.status)}`}>
-                            {booking.status}
-                          </span>
-                        </td>
+              {/* Grid cell wrapper */}
+              <div className="grid grid-cols-7 gap-2">
+                {daysInMonth.map((day, idx) => {
+                  const status = getDayStatus(day.dateStr);
+                  const isSelected = selectedCalendarDateStr === day.dateStr;
+                  const isToday = getLocalDateStr(new Date()) === day.dateStr;
 
-                        {/* Actions */}
-                        <td className="px-6 py-5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => openEditModal(booking)}
-                              title="Reschedule / Edit"
-                              className="p-1.5 rounded bg-white text-[#5B7A68] hover:text-[#1C2D24] border border-[#1C2D24]/10 hover:border-[#1C2D24] transition-colors"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            {booking.status !== "CONFIRMED" && (
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, "CONFIRMED")}
-                                title="Konfirmasi"
-                                className="p-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/40 transition-colors"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {booking.status !== "COMPLETED" && booking.name !== "BLOKIR JADWAL" && (
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, "COMPLETED")}
-                                title="Tandai Selesai"
-                                className="p-1.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/40 transition-colors"
-                              >
-                                <CheckCircle className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {booking.status !== "CANCELLED" && (
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, "CANCELLED")}
-                                title="Batalkan"
-                                className="p-1.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/40 transition-colors"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteBooking(booking.id)}
-                              title="Hapus"
-                              className="p-1.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/40 transition-colors ml-2"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                  return (
+                    <button
+                      key={`${day.dateStr}-${idx}`}
+                      onClick={() => setSelectedCalendarDateStr(day.dateStr)}
+                      className={`min-h-[76px] p-2 rounded-xl border text-left flex flex-col justify-between transition-all relative ${
+                        !day.isCurrentMonth
+                          ? "opacity-30 border-[#1C2D24]/5 bg-transparent cursor-pointer"
+                          : isSelected
+                          ? "border-[#2D5A27] bg-[#2D5A27]/5 shadow-sm ring-1 ring-[#2D5A27] cursor-pointer"
+                          : status.isBlocked
+                          ? "border-[#8C6239]/20 bg-[#8C6239]/5 cursor-pointer"
+                          : status.isSunday
+                          ? "border-transparent bg-gray-50/50 text-gray-400 cursor-pointer"
+                          : "border-[#1C2D24]/5 bg-white hover:bg-[#F9F6F0]/50 cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex justify-between items-baseline w-full">
+                        <span className={`text-xs font-bold font-serif ${
+                          isToday ? "bg-[#2D5A27] text-white w-5 h-5 rounded-full flex items-center justify-center -ml-0.5" : ""
+                        }`}>
+                          {day.dayNum}
+                        </span>
+                        {status.isBlocked && (
+                          <span className="text-[8px] font-bold text-[#8C6239] font-mono tracking-wide uppercase">LOCK</span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1 w-full text-[8px] font-mono mt-1">
+                        {status.isBlocked ? (
+                          <div className="text-[#8C6239] font-bold">🔒 Tutup</div>
+                        ) : status.isSunday ? (
+                          <div className="text-gray-400 font-light">Libur</div>
+                        ) : status.totalBookings > 0 ? (
+                          <div className="text-[#2D5A27] font-bold">
+                            🟢 {status.totalBookings} Slot
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        ) : (
+                          <div className="text-[#5B7A68]/40">Tersedia</div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Right: Daily Slots Panel */}
+            <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-[#1C2D24]/5 shadow-sm space-y-6">
+              <div className="border-b border-[#1C2D24]/10 pb-4 flex justify-between items-center">
+                <div>
+                  <span className="text-[8px] font-mono font-bold tracking-widest text-[#8C6239] uppercase">DETAIL JADWAL</span>
+                  <h3 className="font-serif text-lg font-semibold text-[#1C2D24] mt-0.5">
+                    {new Date(`${selectedCalendarDateStr}T00:00:00`).toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric"
+                    })}
+                  </h3>
+                </div>
+
+                {/* Day block trigger */}
+                <button
+                  onClick={() => handleToggleBlockDay(selectedCalendarDateStr)}
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider font-mono border transition-all cursor-pointer ${
+                    getDayStatus(selectedCalendarDateStr).isBlocked
+                      ? "bg-[#8C6239] border-[#8C6239] text-[#F9F6F0] hover:bg-[#8C6239]/90"
+                      : "border-[#8C6239] text-[#8C6239] bg-transparent hover:bg-[#8C6239]/10"
+                  }`}
+                >
+                  {getDayStatus(selectedCalendarDateStr).isBlocked ? "🔓 Buka Hari" : "🔒 Blokir Hari"}
+                </button>
+              </div>
+
+              {/* Day fully blocked notice */}
+              {getDayStatus(selectedCalendarDateStr).isBlocked ? (
+                <div className="p-8 text-center bg-amber-50/50 rounded-2xl border border-dashed border-[#8C6239]/30 text-amber-900 space-y-2">
+                  <Lock className="w-8 h-8 text-[#8C6239] mx-auto" />
+                  <h4 className="font-serif text-base font-semibold">Hari Ini Diblokir Penuh</h4>
+                  <p className="text-xs text-[#5B7A68] max-w-xs mx-auto">
+                    Klien tidak dapat memesan jam diskusi manapun pada tanggal ini karena sistem terkunci.
+                  </p>
+                </div>
+              ) : getDayStatus(selectedCalendarDateStr).isSunday ? (
+                <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-500 space-y-2">
+                  <Calendar className="w-8 h-8 text-gray-400 mx-auto" />
+                  <h4 className="font-serif text-base font-semibold">Hari Minggu</h4>
+                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                    Hari libur operasional reguler. Pilihan kalender user otomatis menyembunyikan hari Minggu.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold font-mono tracking-widest text-[#5B7A68] uppercase mb-4">
+                    SLOT WAKTU (9:00 - 17:00)
+                  </h4>
+                  
+                  <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                    {TIME_SLOTS.map(slot => {
+                      const dayBookings = bookings.filter(b => getLocalDateStr(b.startTime) === selectedCalendarDateStr);
+                      const booking = dayBookings.find(b => {
+                        const bTime = new Date(b.startTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+                        return bTime === slot.value;
+                      });
+
+                      const isSlotBlocked = booking?.name === "BLOKIR JADWAL" && booking?.status === "CONFIRMED";
+
+                      return (
+                        <div
+                          key={slot.value}
+                          className={`flex items-center justify-between p-3.5 rounded-xl border text-xs transition-all ${
+                            isSlotBlocked
+                              ? "bg-amber-50/10 border-amber-200/40 text-amber-900"
+                              : booking
+                              ? "bg-[#2D5A27]/5 border-[#2D5A27]/10"
+                              : "bg-white border-[#1C2D24]/5 hover:border-[#1C2D24]/10"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="font-mono font-bold text-[#1C2D24] text-[11px] bg-[#F9F6F0] px-2 py-1 rounded border border-[#1C2D24]/5">
+                              {slot.value}
+                            </div>
+                            
+                            <div className="text-left">
+                              {isSlotBlocked ? (
+                                <div className="font-semibold text-[#8C6239] flex items-center gap-1">
+                                  <span>🔒 Jam Diblokir</span>
+                                </div>
+                              ) : booking ? (
+                                <div>
+                                  <div className="font-bold text-[#1C2D24]">{booking.name}</div>
+                                  <div className="text-[10px] text-[#5B7A68] font-mono mt-0.5">
+                                    {booking.resourceName} • {booking.whatsapp}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-[#2D5A27] font-semibold">🟢 Tersedia</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isSlotBlocked ? (
+                              <button
+                                onClick={() => deleteBooking(booking.id)}
+                                className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider font-mono bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200/30 transition-colors cursor-pointer"
+                              >
+                                Buka Blokir
+                              </button>
+                            ) : booking ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => openEditModal(booking)}
+                                  className="p-1 rounded bg-white text-[#5B7A68] hover:text-[#1C2D24] border border-[#1C2D24]/10 transition-colors cursor-pointer"
+                                  title="Edit/Reschedule"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteBooking(booking.id)}
+                                  className="p-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/40 transition-colors cursor-pointer"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => openManualBooking(selectedCalendarDateStr, slot.value)}
+                                  className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider font-mono bg-[#1C2D24] text-[#F9F6F0] hover:bg-[#2D5A27] rounded transition-colors cursor-pointer"
+                                >
+                                  Book
+                                </button>
+                                <button
+                                  onClick={() => handleBlockSlot(selectedCalendarDateStr, slot.value)}
+                                  className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider font-mono border border-[#8C6239] text-[#8C6239] hover:bg-[#8C6239]/10 rounded transition-colors cursor-pointer"
+                                >
+                                  Blokir
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 2: TABLE LIST VIEW */}
+        {activeTab === "list" && (
+          <div className="space-y-6">
+            {/* Booking Count Summary Widgets */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase block mb-1">TOTAL PERMINTAAN</span>
+                <span className="text-2xl font-semibold text-[#1C2D24]">{bookings.length}</span>
+              </div>
+              <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-[#2D5A27] uppercase block mb-1">TERKONFIRMASI</span>
+                <span className="text-2xl font-semibold text-[#2D5A27]">
+                  {bookings.filter(b => b.status === "CONFIRMED").length}
+                </span>
+              </div>
+              <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-blue-700 uppercase block mb-1">SELESAI DISKUSI</span>
+                <span className="text-2xl font-semibold text-blue-700">
+                  {bookings.filter(b => b.status === "COMPLETED").length}
+                </span>
+              </div>
+              <div className="bg-white p-5 rounded-xl border border-[#1C2D24]/5">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-rose-700 uppercase block mb-1">BATAL</span>
+                <span className="text-2xl font-semibold text-rose-700">
+                  {bookings.filter(b => b.status === "CANCELLED").length}
+                </span>
+              </div>
+            </div>
+
+            {/* List Controls */}
+            <div className="flex justify-end gap-3 items-center bg-white p-4 rounded-xl border border-[#1C2D24]/5">
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="px-4 py-2.5 rounded-lg bg-white border border-[#1C2D24]/10 text-xs font-semibold focus:outline-none focus:border-[#2D5A27] text-[#1C2D24]"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="PENDING">Pending</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            {/* Bookings Table / List Container */}
+            <div className="bg-white rounded-2xl border border-[#1C2D24]/5 overflow-hidden">
+              {isLoading && bookings.length === 0 ? (
+                <div className="py-24 text-center">
+                  <RefreshCw className="w-8 h-8 text-[#5B7A68] animate-spin mx-auto mb-3" />
+                  <p className="font-serif italic text-lg text-[#5B7A68]/80">Mengambil data pemesanan...</p>
+                </div>
+              ) : filteredBookings.length === 0 ? (
+                <div className="py-24 text-center">
+                  <Calendar className="w-8 h-8 text-[#5B7A68]/40 mx-auto mb-3" />
+                  <p className="font-serif italic text-lg text-[#5B7A68]/80">Tidak ada data diskusi ditemukan.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#1C2D24]/5 bg-[#F9F6F0]/20">
+                        <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">KLIEN</th>
+                        <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">LAYANAN</th>
+                        <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">TANGGAL & WAKTU</th>
+                        <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase">STATUS</th>
+                        <th className="px-6 py-4 text-[9px] font-mono font-bold tracking-widest text-[#5B7A68] uppercase text-right">AKSI</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1C2D24]/5">
+                      {filteredBookings.map((booking) => {
+                        const waLink = `https://wa.me/${booking.whatsapp.replace(/\D/g, "")}`;
+                        
+                        return (
+                          <tr key={booking.id} className={`hover:bg-[#F9F6F0]/10 transition-colors ${
+                            booking.name === "BLOKIR JADWAL" ? "bg-amber-50/20" : ""
+                          }`}>
+                            {/* Client details */}
+                            <td className="px-6 py-5">
+                              {booking.name === "BLOKIR JADWAL" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-sm text-[#8C6239] flex items-center gap-1">🔒 JADWAL DIBLOKIR</span>
+                                  <span className="text-[7px] font-mono font-bold tracking-widest text-[#8C6239] bg-[#8C6239]/10 px-1.5 py-0.5 rounded">UNAVAILABLE</span>
+                                </div>
+                              ) : booking.name === "BLOKIR HARI" ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-sm text-[#8C6239] flex items-center gap-1">🔒 HARI DIBLOKIR</span>
+                                  <span className="text-[7px] font-mono font-bold tracking-widest text-[#8C6239] bg-[#8C6239]/10 px-1.5 py-0.5 rounded">FULL DAY</span>
+                                </div>
+                              ) : (
+                                <div className="font-semibold text-sm text-[#1C2D24]">{booking.name}</div>
+                              )}
+                              
+                              {booking.name === "BLOKIR JADWAL" || booking.name === "BLOKIR HARI" ? (
+                                <span className="text-[10px] font-mono text-[#5B7A68]">Blokir Sistem</span>
+                              ) : (
+                                <a 
+                                  href={waLink} 
+                                  target="_blank" 
+                                  className="text-xs font-mono text-[#5B7A68] hover:text-[#2D5A27] inline-flex items-center gap-1.5 mt-1"
+                                >
+                                  <span>{booking.whatsapp}</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </td>
+                            
+                            {/* Service Chosen */}
+                            <td className="px-6 py-5">
+                              <div className="text-sm font-medium">{booking.resourceName}</div>
+                              <div className="text-[10px] font-mono text-[#8C6239] uppercase mt-0.5">{booking.resourceType}</div>
+                            </td>
+
+                            {/* Date and Time */}
+                            <td className="px-6 py-5">
+                              <div className="text-sm text-[#1C2D24] font-medium">{formatDate(booking.startTime)}</div>
+                              <div className="text-xs font-mono text-[#5B7A68] mt-0.5">{formatTime(booking.startTime)}</div>
+                            </td>
+
+                            {/* Status Badge */}
+                            <td className="px-6 py-5">
+                              <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono ${getStatusBadgeClass(booking.status)}`}>
+                                {booking.status}
+                              </span>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => openEditModal(booking)}
+                                  title="Reschedule / Edit"
+                                  className="p-1.5 rounded bg-white text-[#5B7A68] hover:text-[#1C2D24] border border-[#1C2D24]/10 hover:border-[#1C2D24] transition-colors cursor-pointer"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                {booking.status !== "CONFIRMED" && (
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, "CONFIRMED")}
+                                    title="Konfirmasi"
+                                    className="p-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/40 transition-colors cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {booking.status !== "COMPLETED" && booking.name !== "BLOKIR JADWAL" && booking.name !== "BLOKIR HARI" && (
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, "COMPLETED")}
+                                    title="Tandai Selesai"
+                                    className="p-1.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/40 transition-colors cursor-pointer"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {booking.status !== "CANCELLED" && (
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, "CANCELLED")}
+                                    title="Batalkan"
+                                    className="p-1.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/40 transition-colors cursor-pointer"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => deleteBooking(booking.id)}
+                                  title="Hapus"
+                                  className="p-1.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/40 transition-colors ml-2 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Custom Toast Bubble */}
@@ -756,10 +1237,9 @@ export default function AdminDashboard() {
                     onChange={(e) => setCreateTime(e.target.value)}
                     className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
                   >
-                    <option value="09:00">09:00 WIB</option>
-                    <option value="11:00">11:00 WIB</option>
-                    <option value="14:00">14:00 WIB</option>
-                    <option value="16:00">16:00 WIB</option>
+                    {TIME_SLOTS.map(slot => (
+                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -863,10 +1343,9 @@ export default function AdminDashboard() {
                     onChange={(e) => setEditTime(e.target.value)}
                     className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
                   >
-                    <option value="09:00">09:00 WIB</option>
-                    <option value="11:00">11:00 WIB</option>
-                    <option value="14:00">14:00 WIB</option>
-                    <option value="16:00">16:00 WIB</option>
+                    {TIME_SLOTS.map(slot => (
+                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
