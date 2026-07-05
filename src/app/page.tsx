@@ -126,6 +126,7 @@ export default function Home() {
 
   // Navbar scroll tracking
   const [isScrolled, setIsScrolled] = useState(false);
+  const [existingBookings, setExistingBookings] = useState<BookingItem[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -157,6 +158,8 @@ export default function Home() {
       setSelectedDateStr(days[0].dateStr);
     }
 
+    fetchExistingBookings();
+
     // Scroll listener for sticky dock transition
     const handleScroll = () => {
       if (window.scrollY > 40) {
@@ -177,6 +180,50 @@ export default function Home() {
       setToast(prev => ({ ...prev, show: false }));
     }, 4000);
   };
+
+  const fetchExistingBookings = async () => {
+    try {
+      const res = await fetch("/api/bookings");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setExistingBookings(data.bookings || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch existing bookings:", err);
+    }
+  };
+
+  const isSlotTaken = (dateStr: string, timeVal: string) => {
+    const slotStart = new Date(`${dateStr}T${timeVal}:00`);
+    const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+    
+    return existingBookings.some(b => {
+      if (b.status === "CONFIRMED") {
+        const bStart = new Date(b.startTime);
+        const bEnd = new Date(b.endTime);
+        const isOverlap = slotStart < bEnd && slotEnd > bStart;
+        if (isOverlap) {
+          return b.resourceName === selectedService.name || b.resourceName === "Semua Layanan";
+        }
+      }
+      return false;
+    });
+  };
+
+  // Auto-select free slot on date/service change
+  useEffect(() => {
+    if (selectedDateStr) {
+      const isTaken = isSlotTaken(selectedDateStr, selectedTimeSlot);
+      if (isTaken) {
+        const firstFree = TIME_SLOTS.find(slot => !isSlotTaken(selectedDateStr, slot.value));
+        if (firstFree) {
+          setSelectedTimeSlot(firstFree.value);
+        } else {
+          setSelectedTimeSlot("");
+        }
+      }
+    }
+  }, [selectedDateStr, selectedServiceId, existingBookings]);
 
   const scrollToSection = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -258,6 +305,7 @@ export default function Home() {
         setFormDetail("");
         setActiveCheckoutBooking(data.booking);
         setIsSubmitModalOpen(false);
+        fetchExistingBookings(); // Refresh client availability
       } else {
         triggerToast(data.error || "Gagal mengajukan permintaan.", "error");
       }
@@ -844,18 +892,22 @@ export default function Home() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {TIME_SLOTS.map((slot) => {
                     const isSelected = selectedTimeSlot === slot.value;
+                    const taken = isSlotTaken(selectedDateStr, slot.value);
                     return (
                       <button
                         key={slot.value}
                         type="button"
+                        disabled={taken}
                         onClick={() => setSelectedTimeSlot(slot.value)}
-                        className={`py-2 rounded-lg border text-center text-[10px] font-mono transition-all cursor-pointer ${
-                          isSelected 
-                            ? "bg-[#2D5A27] border-[#2D5A27] text-white" 
-                            : "bg-white border-[#1C2D24]/10 text-[#1C2D24] hover:bg-[#1C2D24]/5"
+                        className={`py-2 rounded-lg border text-center text-[10px] font-mono transition-all ${
+                          taken
+                            ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed line-through"
+                            : isSelected 
+                            ? "bg-[#2D5A27] border-[#2D5A27] text-white cursor-pointer" 
+                            : "bg-white border-[#1C2D24]/10 text-[#1C2D24] hover:bg-[#1C2D24]/5 cursor-pointer"
                         }`}
                       >
-                        {slot.value}
+                        {slot.value} {taken && " (Penuh)"}
                       </button>
                     );
                   })}

@@ -48,18 +48,21 @@ export async function POST(request: Request) {
 
     // 1. TEMPORAL VALIDATION: Prevent double booking for slot resources at the same time
     const hasConflict = bookings.some(b => {
-      if (b.resourceName === resourceName && b.status === "CONFIRMED") {
+      if (b.status === "CONFIRMED") {
         const bStart = new Date(b.startTime);
         const bEnd = new Date(b.endTime);
-        // Overlap condition: start < bEnd && end > bStart
-        return start < bEnd && end > bStart;
+        const isOverlap = start < bEnd && end > bStart;
+        if (isOverlap) {
+          // Conflict if it's the same service, or one of them is "Semua Layanan" (global block)
+          return b.resourceName === resourceName || b.resourceName === "Semua Layanan" || resourceName === "Semua Layanan";
+        }
       }
       return false;
     });
 
     if (hasConflict) {
       return NextResponse.json(
-        { success: false, error: "Jadwal slot waktu ini sudah dipesan untuk diskusi lain. Silakan pilih waktu yang berbeda." },
+        { success: false, error: "Jadwal slot waktu ini sudah dipesan atau diblokir. Silakan pilih waktu yang berbeda." },
         { status: 409 } // 409 Conflict
       );
     }
@@ -107,16 +110,67 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, name, whatsapp, resourceName, startTime, endTime } = body;
 
-    if (!id || !status) {
+    if (!id) {
       return NextResponse.json(
-        { success: false, error: "ID dan status wajib diisi." },
+        { success: false, error: "ID wajib diisi." },
         { status: 400 }
       );
     }
 
-    const updated = await updateBookingStatus(id, status);
+    // If rescheduling, perform conflict checking
+    if (startTime && endTime) {
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return NextResponse.json(
+          { success: false, error: "Format tanggal tidak valid." },
+          { status: 400 }
+        );
+      }
+
+      if (end <= start) {
+        return NextResponse.json(
+          { success: false, error: "Waktu selesai harus setelah waktu mulai." },
+          { status: 400 }
+        );
+      }
+
+      const { updateBooking } = await import("@/lib/bookingService");
+      const bookings = await readBookings();
+      const targetResource = resourceName || bookings.find(b => b.id === id)?.resourceName || "";
+
+      const hasConflict = bookings.some(b => {
+        if (b.id !== id && b.status === "CONFIRMED") {
+          const bStart = new Date(b.startTime);
+          const bEnd = new Date(b.endTime);
+          const isOverlap = start < bEnd && end > bStart;
+          if (isOverlap) {
+            return b.resourceName === targetResource || b.resourceName === "Semua Layanan" || targetResource === "Semua Layanan";
+          }
+        }
+        return false;
+      });
+
+      if (hasConflict) {
+        return NextResponse.json(
+          { success: false, error: "Jadwal slot waktu ini sudah dipesan atau diblokir." },
+          { status: 409 }
+        );
+      }
+    }
+
+    const { updateBooking } = await import("@/lib/bookingService");
+    const updated = await updateBooking(id, {
+      status,
+      name,
+      whatsapp,
+      resourceName,
+      startTime,
+      endTime
+    });
 
     if (!updated) {
       return NextResponse.json(
@@ -128,7 +182,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({
       success: true,
       booking: updated,
-      message: "Status pemesanan berhasil diperbarui!"
+      message: "Data pemesanan berhasil diperbarui!"
     });
   } catch (err: any) {
     console.error("PUT Booking Error:", err);

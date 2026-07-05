@@ -103,10 +103,27 @@ export async function createBooking(data: Omit<BookingItem, "id" | "createdAt" |
 
 // Update booking status
 export async function updateBookingStatus(id: string, status: string): Promise<BookingItem | null> {
+  return updateBooking(id, { status });
+}
+
+// Generic update booking for full CRUD / rescheduling
+export async function updateBooking(
+  id: string,
+  data: Partial<Omit<BookingItem, "id" | "createdAt">>
+): Promise<BookingItem | null> {
   try {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.whatsapp !== undefined) updateData.whatsapp = data.whatsapp;
+    if (data.resourceName !== undefined) updateData.resourceName = data.resourceName;
+    if (data.resourceType !== undefined) updateData.resourceType = data.resourceType;
+    if (data.startTime !== undefined) updateData.startTime = new Date(data.startTime);
+    if (data.endTime !== undefined) updateData.endTime = new Date(data.endTime);
+    if (data.status !== undefined) updateData.status = data.status;
+
     const b = await prisma.simpleBooking.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
     return {
       id: b.id,
@@ -124,7 +141,15 @@ export async function updateBookingStatus(id: string, status: string): Promise<B
     const bookings = await readBookings();
     const index = bookings.findIndex((b) => b.id === id);
     if (index === -1) return null;
-    bookings[index].status = status;
+    
+    if (data.name !== undefined) bookings[index].name = data.name;
+    if (data.whatsapp !== undefined) bookings[index].whatsapp = data.whatsapp;
+    if (data.resourceName !== undefined) bookings[index].resourceName = data.resourceName;
+    if (data.resourceType !== undefined) bookings[index].resourceType = data.resourceType;
+    if (data.startTime !== undefined) bookings[index].startTime = data.startTime;
+    if (data.endTime !== undefined) bookings[index].endTime = data.endTime;
+    if (data.status !== undefined) bookings[index].status = data.status;
+
     writeBookingsJson(bookings);
     return bookings[index];
   }

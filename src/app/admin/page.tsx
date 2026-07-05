@@ -12,7 +12,8 @@ import {
   Calendar, 
   MessageSquare,
   Sparkles,
-  Check
+  Check,
+  Edit
 } from "lucide-react";
 
 interface BookingItem {
@@ -49,6 +50,25 @@ export default function AdminDashboard() {
     type: "success"
   });
 
+  // Create Booking/Block State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createIsBlock, setCreateIsBlock] = useState(true);
+  const [createName, setCreateName] = useState("BLOKIR JADWAL");
+  const [createWhatsapp, setCreateWhatsapp] = useState("00000000000");
+  const [createResourceName, setCreateResourceName] = useState("Semua Layanan");
+  const [createDate, setCreateDate] = useState("");
+  const [createTime, setCreateTime] = useState("09:00");
+
+  // Edit/Reschedule State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<BookingItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editWhatsapp, setEditWhatsapp] = useState("");
+  const [editResourceName, setEditResourceName] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [editStatus, setEditStatus] = useState("CONFIRMED");
+
   // Check auth state from sessionStorage on mount
   useEffect(() => {
     const isAuth = sessionStorage.getItem("clear_admin_authenticated");
@@ -76,6 +96,114 @@ export default function AdminDashboard() {
     } else {
       setLoginError("Kombinasi username atau password salah.");
       triggerToast("Login gagal", "error");
+    }
+  };
+
+  const handleCreateBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createDate || !createTime) {
+      triggerToast("Tanggal dan waktu wajib dipilih.", "warning");
+      return;
+    }
+
+    try {
+      const startTimeStr = `${createDate}T${createTime}:00`;
+      const start = new Date(startTimeStr);
+      const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour slot
+
+      const payload = {
+        name: createIsBlock ? "BLOKIR JADWAL" : createName,
+        whatsapp: createIsBlock ? "00000000000" : createWhatsapp,
+        resourceName: createResourceName,
+        resourceType: "SLOT",
+        startTime: start.toISOString(),
+        endTime: end.toISOString()
+      };
+
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        triggerToast(createIsBlock ? "Slot waktu berhasil diblokir." : "Booking berhasil ditambahkan.", "success");
+        setIsCreateModalOpen(false);
+        // Reset form
+        setCreateIsBlock(true);
+        setCreateName("BLOKIR JADWAL");
+        setCreateWhatsapp("00000000000");
+        setCreateResourceName("Semua Layanan");
+        setCreateDate("");
+        setCreateTime("09:00");
+        fetchBookings();
+      } else {
+        triggerToast(data.error || "Gagal membuat booking/blokir.", "error");
+      }
+    } catch (err) {
+      triggerToast("Terjadi kendala koneksi.", "error");
+    }
+  };
+
+  const openEditModal = (booking: BookingItem) => {
+    setEditingBooking(booking);
+    setEditName(booking.name);
+    setEditWhatsapp(booking.whatsapp);
+    setEditResourceName(booking.resourceName);
+    
+    // Parse ISO string to YYYY-MM-DD and HH:MM local format
+    const dateObj = new Date(booking.startTime);
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const dd = String(dateObj.getDate()).padStart(2, "0");
+    setEditDate(`${yyyy}-${mm}-${dd}`);
+    
+    const hh = String(dateObj.getHours()).padStart(2, "0");
+    const min = String(dateObj.getMinutes()).padStart(2, "0");
+    setEditTime(`${hh}:${min}`);
+    setEditStatus(booking.status);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBooking) return;
+    if (!editDate || !editTime) {
+      triggerToast("Tanggal dan waktu wajib dipilih.", "warning");
+      return;
+    }
+
+    try {
+      const startTimeStr = `${editDate}T${editTime}:00`;
+      const start = new Date(startTimeStr);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+      const payload = {
+        id: editingBooking.id,
+        name: editName,
+        whatsapp: editWhatsapp,
+        resourceName: editResourceName,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        status: editStatus
+      };
+
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        triggerToast("Data pemesanan berhasil diperbarui.", "success");
+        setIsEditModalOpen(false);
+        setEditingBooking(null);
+        fetchBookings();
+      } else {
+        triggerToast(data.error || "Gagal memperbarui data.", "error");
+      }
+    } catch (err) {
+      triggerToast("Terjadi kendala koneksi.", "error");
     }
   };
 
@@ -312,6 +440,14 @@ export default function AdminDashboard() {
           {/* Controls */}
           <div className="lg:col-span-4 flex items-center justify-end gap-3">
             <button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-3 rounded-lg bg-[#1C2D24] text-[#F9F6F0] hover:bg-[#2D5A27] transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+            >
+              <Calendar className="w-4 h-4" />
+              Tambah Booking / Blokir
+            </button>
+
+            <button 
               onClick={fetchBookings}
               disabled={isLoading}
               className="flex items-center justify-center p-3 rounded-lg bg-white border border-[#1C2D24]/10 hover:border-[#1C2D24] text-[#5B7A68] hover:text-[#1C2D24] transition-all disabled:opacity-50"
@@ -388,18 +524,32 @@ export default function AdminDashboard() {
                     const waLink = `https://wa.me/${booking.whatsapp.replace(/\D/g, "")}`;
                     
                     return (
-                      <tr key={booking.id} className="hover:bg-[#F9F6F0]/10 transition-colors">
+                      <tr key={booking.id} className={`hover:bg-[#F9F6F0]/10 transition-colors ${
+                        booking.name === "BLOKIR JADWAL" ? "bg-amber-50/20" : ""
+                      }`}>
                         {/* Client details */}
                         <td className="px-6 py-5">
-                          <div className="font-semibold text-sm text-[#1C2D24]">{booking.name}</div>
-                          <a 
-                            href={waLink} 
-                            target="_blank" 
-                            className="text-xs font-mono text-[#5B7A68] hover:text-[#2D5A27] inline-flex items-center gap-1.5 mt-1"
-                          >
-                            <span>{booking.whatsapp}</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
+                          {booking.name === "BLOKIR JADWAL" ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-sm text-[#8C6239] flex items-center gap-1">🔒 JADWAL DIBLOKIR</span>
+                              <span className="text-[7px] font-mono font-bold tracking-widest text-[#8C6239] bg-[#8C6239]/10 px-1.5 py-0.5 rounded">UNAVAILABLE</span>
+                            </div>
+                          ) : (
+                            <div className="font-semibold text-sm text-[#1C2D24]">{booking.name}</div>
+                          )}
+                          
+                          {booking.name === "BLOKIR JADWAL" ? (
+                            <span className="text-[10px] font-mono text-[#5B7A68]">Blokir Sistem</span>
+                          ) : (
+                            <a 
+                              href={waLink} 
+                              target="_blank" 
+                              className="text-xs font-mono text-[#5B7A68] hover:text-[#2D5A27] inline-flex items-center gap-1.5 mt-1"
+                            >
+                              <span>{booking.whatsapp}</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
                         </td>
                         
                         {/* Service Chosen */}
@@ -424,6 +574,13 @@ export default function AdminDashboard() {
                         {/* Actions */}
                         <td className="px-6 py-5 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => openEditModal(booking)}
+                              title="Reschedule / Edit"
+                              className="p-1.5 rounded bg-white text-[#5B7A68] hover:text-[#1C2D24] border border-[#1C2D24]/10 hover:border-[#1C2D24] transition-colors"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
                             {booking.status !== "CONFIRMED" && (
                               <button
                                 onClick={() => updateBookingStatus(booking.id, "CONFIRMED")}
@@ -433,7 +590,7 @@ export default function AdminDashboard() {
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {booking.status !== "COMPLETED" && (
+                            {booking.status !== "COMPLETED" && booking.name !== "BLOKIR JADWAL" && (
                               <button
                                 onClick={() => updateBookingStatus(booking.id, "COMPLETED")}
                                 title="Tandai Selesai"
@@ -487,6 +644,267 @@ export default function AdminDashboard() {
               : "bg-rose-500"
           }`}></span>
           <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* 10. CREATE BOOKING & BLOCK SLOT MODAL */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md bg-[#F9F6F0] rounded-2xl shadow-2xl p-6 border border-[#1C2D24]/10 max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setIsCreateModalOpen(false)}
+              className="absolute top-5 right-5 text-[#5B7A68] hover:text-[#1C2D24] transition-colors cursor-pointer"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+
+            <div className="text-left pb-4 border-b border-[#1C2D24]/10 mb-6">
+              <span className="text-[9px] font-mono text-[#5B7A68] font-bold tracking-widest uppercase block mb-1">ADMINISTRATOR ACT</span>
+              <h4 className="font-serif text-2xl font-light text-[#1C2D24]">Tambah Booking / Blokir</h4>
+              <p className="text-xs text-[#5B7A68] mt-1">Buat jadwal manual atau blokir slot agar tidak bisa dipesan klien.</p>
+            </div>
+
+            <form onSubmit={handleCreateBooking} className="space-y-4">
+              <div className="flex gap-4 p-3 bg-white rounded-xl border border-[#1C2D24]/5">
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={createIsBlock} 
+                    onChange={() => {
+                      setCreateIsBlock(true);
+                      setCreateName("BLOKIR JADWAL");
+                      setCreateWhatsapp("00000000000");
+                    }} 
+                    className="accent-[#2D5A27]"
+                  />
+                  Blokir Slot (Unavailable)
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={!createIsBlock} 
+                    onChange={() => {
+                      setCreateIsBlock(false);
+                      setCreateName("");
+                      setCreateWhatsapp("");
+                    }} 
+                    className="accent-[#2D5A27]"
+                  />
+                  Booking Klien Manual
+                </label>
+              </div>
+
+              {!createIsBlock && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Nama Klien</label>
+                    <input 
+                      type="text" 
+                      value={createName}
+                      onChange={(e) => setCreateName(e.target.value)}
+                      placeholder="Nama klien / instansi"
+                      className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                      required={!createIsBlock}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Nomor WhatsApp</label>
+                    <input 
+                      type="tel" 
+                      value={createWhatsapp}
+                      onChange={(e) => setCreateWhatsapp(e.target.value)}
+                      placeholder="Contoh: 0812345678"
+                      className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                      required={!createIsBlock}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Layanan / Resource</label>
+                <select 
+                  value={createResourceName}
+                  onChange={(e) => setCreateResourceName(e.target.value)}
+                  className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                >
+                  <option value="Semua Layanan">Semua Layanan (Blokir Global)</option>
+                  <option value="Website Kustom">Website Kustom</option>
+                  <option value="Dasbor Internal">Dasbor Internal</option>
+                  <option value="Company Profile">Company Profile</option>
+                  <option value="Landing Page Penawaran">Landing Page Penawaran</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Tanggal</label>
+                  <input 
+                    type="date" 
+                    value={createDate}
+                    onChange={(e) => setCreateDate(e.target.value)}
+                    className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Jam Diskusi</label>
+                  <select 
+                    value={createTime}
+                    onChange={(e) => setCreateTime(e.target.value)}
+                    className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                  >
+                    <option value="09:00">09:00 WIB</option>
+                    <option value="11:00">11:00 WIB</option>
+                    <option value="14:00">14:00 WIB</option>
+                    <option value="16:00">16:00 WIB</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="flex-1 py-3 border border-[#1C2D24]/10 text-[#5B7A68] text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#1C2D24]/5 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-[2] py-3 bg-[#1C2D24] text-[#F9F6F0] text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#2D5A27] transition-colors shadow-sm cursor-pointer"
+                >
+                  Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 11. RESCHEDULE & EDIT BOOKING MODAL */}
+      {isEditModalOpen && editingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md bg-[#F9F6F0] rounded-2xl shadow-2xl p-6 border border-[#1C2D24]/10 max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditingBooking(null);
+              }}
+              className="absolute top-5 right-5 text-[#5B7A68] hover:text-[#1C2D24] transition-colors cursor-pointer"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+
+            <div className="text-left pb-4 border-b border-[#1C2D24]/10 mb-6">
+              <span className="text-[9px] font-mono text-[#5B7A68] font-bold tracking-widest uppercase block mb-1">ADMINISTRATOR ACT</span>
+              <h4 className="font-serif text-2xl font-light text-[#1C2D24]">Edit / Reschedule Jadwal</h4>
+              <p className="text-xs text-[#5B7A68] mt-1">Ubah tanggal, jam, detail kontak, atau status jadwal.</p>
+            </div>
+
+            <form onSubmit={handleEditBooking} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Nama / Deskripsi</label>
+                <input 
+                  type="text" 
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nama klien / BLOKIR JADWAL"
+                  className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">WhatsApp</label>
+                <input 
+                  type="text" 
+                  value={editWhatsapp}
+                  onChange={(e) => setEditWhatsapp(e.target.value)}
+                  placeholder="WhatsApp number / 00000000000"
+                  className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Layanan / Resource</label>
+                <select 
+                  value={editResourceName}
+                  onChange={(e) => setEditResourceName(e.target.value)}
+                  className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                >
+                  <option value="Semua Layanan">Semua Layanan (Blokir Global)</option>
+                  <option value="Website Kustom">Website Kustom</option>
+                  <option value="Dasbor Internal">Dasbor Internal</option>
+                  <option value="Company Profile">Company Profile</option>
+                  <option value="Landing Page Penawaran">Landing Page Penawaran</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Tanggal</label>
+                  <input 
+                    type="date" 
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Jam Diskusi</label>
+                  <select 
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                  >
+                    <option value="09:00">09:00 WIB</option>
+                    <option value="11:00">11:00 WIB</option>
+                    <option value="14:00">14:00 WIB</option>
+                    <option value="16:00">16:00 WIB</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-[#5B7A68] uppercase tracking-wider block font-mono">Status Jadwal</label>
+                <select 
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full rounded-xl bg-white px-4 py-3 text-xs text-[#1C2D24] border border-[#1C2D24]/10 focus:outline-none focus:border-[#2D5A27]"
+                >
+                  <option value="CONFIRMED">CONFIRMED</option>
+                  <option value="PENDING">PENDING</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingBooking(null);
+                  }}
+                  className="flex-1 py-3 border border-[#1C2D24]/10 text-[#5B7A68] text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#1C2D24]/5 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-[2] py-3 bg-[#1C2D24] text-[#F9F6F0] text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-[#2D5A27] transition-colors shadow-sm cursor-pointer"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
